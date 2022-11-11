@@ -1,27 +1,44 @@
-const users = require('../data/user.json');
+const users = require("../data/user.json");
+const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 class AuthenticationController {
-    login = (req, res) => {
-        try {
-            console.log(req.body);
-            const { username, password } = req.body;
-            if (!username || !password) {
-                throw new Error('Missing username and/or password')
-            };
-    
-            const user = users.find(u => u.username === username && u.password === password)
-    
-            if (!user.length){
-                throw new Error('Incorrect username and password')
-            }
-    
-            const token = 'temp_token';
-            res.json({ user: user[0], token });
-        } catch (error) {
-            res.json({ error_message: error.message })
-        }
-        
+  prisma = new PrismaClient();
+  login = async (req, res) => {
+    try {
+      console.log(req.body);
+      const { username, password } = req.body;
+      if (!username || !password) {
+        throw new Error("Missing username and/or password");
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { email: username },
+      });
+
+      if (!user) {
+        throw new Error("Incorrect username and password");
+      }
+
+      const isMatch = await bcrypt.compareSync(password, user.password);
+
+      if (!isMatch) {
+        throw new Error("Incorrect username and password");
+      }
+
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+        },
+        "#topSecret"
+      );
+      res.json({ user: user, token });
+    } catch (error) {
+      res.json({ error_message: error.message });
     }
+  };
 }
 
-module.exports = new AuthenticationController()
+module.exports = new AuthenticationController();
